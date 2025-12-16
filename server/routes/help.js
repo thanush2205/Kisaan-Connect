@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const Ticket = require('../models/Ticket');
+const Farmer = require('../models/Farmer');
 const nodemailer = require('nodemailer');
+const notificationService = require('../services/notificationService');
 
 // Email transporter configuration with improved error handling
 const transporter = nodemailer.createTransport({
@@ -507,6 +509,30 @@ router.put('/tickets/:id', requireAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Ticket not found' });
     }
 
+    // Send push notification to user if admin added a response
+    if (adminResponse) {
+      try {
+        const user = await Farmer.findOne({ email: ticket.email });
+        
+        if (user && user.fcmToken) {
+          console.log(`📤 Sending push notification to ${user.fullName} for ticket update`);
+          
+          await notificationService.sendAdminResponseNotification(user.fcmToken, {
+            ticketId: ticket.ticketNumber || ticket.ticketId || ticket._id,
+            status: status === 'resolved' ? 'resolved' : 'updated',
+            adminResponse: adminResponse.substring(0, 100) // Limit length for notification
+          });
+          
+          console.log('✅ Push notification sent successfully');
+        } else {
+          console.log('⚠️ No FCM token found for user or user not found');
+        }
+      } catch (notifError) {
+        console.error('❌ Error sending push notification:', notifError.message);
+        // Don't fail the update if notification fails
+      }
+    }
+
     res.json({
       message: 'Ticket updated successfully',
       ticket
@@ -555,6 +581,28 @@ router.post('/tickets/:id/response', requireAdmin, async (req, res) => {
 
     // Send email notification to user about the response
     await sendResponseNotification(ticket, message.trim(), req.session.user.fullName);
+
+    // Send push notification to user
+    try {
+      const user = await Farmer.findOne({ email: ticket.email });
+      
+      if (user && user.fcmToken) {
+        console.log(`📤 Sending push notification to ${user.fullName} for ticket response`);
+        
+        await notificationService.sendAdminResponseNotification(user.fcmToken, {
+          ticketId: ticket.ticketNumber || ticket.ticketId || ticket._id,
+          status: status === 'resolved' ? 'resolved' : 'responded',
+          adminResponse: message.trim().substring(0, 100) // Limit length for notification
+        });
+        
+        console.log('✅ Push notification sent successfully');
+      } else {
+        console.log('⚠️ No FCM token found for user or user not found');
+      }
+    } catch (notifError) {
+      console.error('❌ Error sending push notification:', notifError.message);
+      // Don't fail the response if notification fails
+    }
 
     res.json({
       message: 'Response added successfully',

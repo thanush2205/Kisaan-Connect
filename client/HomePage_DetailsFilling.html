@@ -3430,6 +3430,7 @@ body.dark-mode .results-info {
           headers: {
             'Content-Type': 'application/json'
           },
+          credentials: 'include', // Important: include cookies for session
           body: JSON.stringify({
             participantId: sellerId,
             cropId: cropId

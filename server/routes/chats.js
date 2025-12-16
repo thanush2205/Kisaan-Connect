@@ -87,15 +87,18 @@ router.post('/start', requireAuth, async (req, res) => {
     }
 
     // Check if participant exists
+    console.log('🔍 Looking up participant:', participantId);
     const participant = await Farmer.findById(participantId);
-    console.log('👤 Participant lookup:', participant ? 'Found' : 'Not found');
+    console.log('👤 Participant lookup result:', participant ? `Found: ${participant.fullName}` : 'Not found');
     if (!participant) {
       console.log('❌ Participant not found:', participantId);
       return res.status(404).json({ error: 'Participant not found' });
     }
 
     // Check if chat already exists
+    console.log('🔍 Checking for existing chat...');
     let chat = await Chat.findChatBetweenUsers(currentUserId, participantId, cropId);
+    console.log('💬 Existing chat:', chat ? `Found: ${chat._id}` : 'Not found');
     
     if (!chat) {
       console.log('💬 Creating new chat');
@@ -135,7 +138,16 @@ router.post('/start', requireAuth, async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error starting chat:', error);
-    res.status(500).json({ error: 'Failed to start chat' });
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error details:', {
+      message: error.message,
+      name: error.name,
+      code: error.code
+    });
+    res.status(500).json({ 
+      error: 'Failed to start chat',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 

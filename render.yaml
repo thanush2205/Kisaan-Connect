@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: kisaan-connect
+    env: node
+    region: singapore
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+    # Add your environment variables in Render dashboard
+    # This file is just for reference
