@@ -43,8 +43,8 @@ const chatSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Ensure unique chat between two participants for a specific crop
-chatSchema.index({ participants: 1, cropId: 1 }, { unique: true });
+// Ensure unique chat between two participants (one chat per user pair)
+chatSchema.index({ participants: 1 }, { unique: true });
 
 // Method to find chat between two users
 chatSchema.statics.findChatBetweenUsers = function(userId1, userId2, cropId = null) {

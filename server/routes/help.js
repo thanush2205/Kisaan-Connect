@@ -25,16 +25,27 @@ const transporter = nodemailer.createTransport({
 async function sendEmailSafely(mailOptions) {
   try {
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.log('Email credentials not configured - skipping email');
+      console.log('❌ Email credentials not configured - skipping email');
+      console.log('  EMAIL_USER:', process.env.EMAIL_USER ? 'Set' : 'Missing');
+      console.log('  EMAIL_PASS:', process.env.EMAIL_PASS ? 'Set' : 'Missing');
       return { success: false, reason: 'not_configured' };
     }
     
-    console.log('Attempting to send email...');
+    console.log('📧 Attempting to send email to:', mailOptions.to);
+    console.log('  From:', process.env.EMAIL_USER);
+    console.log('  Subject:', mailOptions.subject);
+    
     const info = await transporter.sendMail(mailOptions);
     console.log('✅ Email sent successfully:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error('❌ Error sending email:', error.message);
+    console.error('❌ Error code:', error.code);
+    console.error('❌ Error details:', {
+      command: error.command,
+      response: error.response,
+      responseCode: error.responseCode
+    });
     
     // Log the ticket anyway even if email fails
     console.log('Email failed but ticket was still created successfully');
