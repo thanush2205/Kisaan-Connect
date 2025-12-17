@@ -1538,6 +1538,23 @@ io.on('connection', (socket) => {
   });
 });
 
+// Error handling middleware - must be after all routes
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  console.error('Error stack:', err.stack);
+  
+  // Check if response has already been sent
+  if (res.headersSent) {
+    return next(err);
+  }
+  
+  // Always return JSON for API requests
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal server error',
+    details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
+});
+
 // Start Server
 const port = process.env.PORT || 3000;
 server.listen(port, () => {

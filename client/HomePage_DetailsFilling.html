@@ -2323,8 +2323,19 @@ body.dark-mode .results-info {
       try {
         const response = await fetch('/crops', {
           method: 'POST',
-          body: formData
+          body: formData,
+          credentials: 'include' // Include session cookie
         });
+        
+        // Check content type before parsing
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await response.text();
+          console.error('Server returned non-JSON response:', text);
+          alert('Server error: Please check if you are logged in and try again.');
+          return;
+        }
+        
         const result = await response.json();
     
         if (response.ok) {
@@ -2345,7 +2356,7 @@ body.dark-mode .results-info {
         }
       } catch (error) {
         console.error('Error adding crop:', error);
-        alert('An error occurred while adding the crop.');
+        alert('An error occurred while adding the crop. Please check console for details.');
       }
     }
 

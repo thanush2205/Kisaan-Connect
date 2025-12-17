@@ -6,9 +6,24 @@ const { uploadCrop, deleteImage } = require('../config/cloudinary');
 
 // Middleware to check if user is authenticated
 const isAuthenticated = (req, res, next) => {
+  console.log('🔐 Auth Check:');
+  console.log('  - Session exists:', !!req.session);
+  console.log('  - Session ID:', req.sessionID);
+  console.log('  - Session user:', req.session.user);
+  console.log('  - Cookies:', req.headers.cookie ? 'Present' : 'Missing');
+  
   if (!req.session.user) {
-    return res.status(401).json({ error: 'Please login to perform this action' });
+    console.log('❌ Authentication failed - no session user');
+    return res.status(401).json({ 
+      error: 'Please login to perform this action',
+      debug: {
+        sessionExists: !!req.session,
+        sessionId: req.sessionID,
+        hasUser: !!req.session.user
+      }
+    });
   }
+  console.log('✅ Authentication passed');
   next();
 };
 
