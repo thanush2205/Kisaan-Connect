@@ -136,21 +136,32 @@ router.get('/', async (req, res) => {
     console.log(`Image base URL: ${baseUrl}`); // Debug log
 
     // Add full image URL to each crop and convert _id to id for compatibility
-    const cropsWithImageUrl = crops.map(crop => ({
-      id: crop._id,
-      name: crop.name,
-      image: crop.image,
-      price: crop.price,
-      quantity: crop.quantity,
-      unit: crop.unit,
-      seller: crop.seller,
-      sellerId: crop.sellerId,
-      location: crop.location,
-      added_date: crop.addedDate,
-      imageUrl: crop.image, // Already Cloudinary URL
-      createdAt: crop.createdAt,
-      updatedAt: crop.updatedAt
-    }));
+    const cropsWithImageUrl = crops.map(crop => {
+      let imageUrl = crop.image;
+      
+      // Check if image is already a full URL (Cloudinary) or a local filename
+      if (crop.image && !crop.image.startsWith('http')) {
+        // Old local image path - construct full URL
+        imageUrl = `${baseUrl}/uploads/crop/${crop.image}`;
+      }
+      // If it starts with http, it's already a Cloudinary URL, use as is
+      
+      return {
+        id: crop._id,
+        name: crop.name,
+        image: crop.image,
+        price: crop.price,
+        quantity: crop.quantity,
+        unit: crop.unit,
+        seller: crop.seller,
+        sellerId: crop.sellerId,
+        location: crop.location,
+        added_date: crop.addedDate,
+        imageUrl: imageUrl,
+        createdAt: crop.createdAt,
+        updatedAt: crop.updatedAt
+      };
+    });
 
     res.status(200).json({
       crops: cropsWithImageUrl,
@@ -189,6 +200,14 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Crop not found' });
     }
 
+    // Check if image is already a full URL (Cloudinary) or a local filename
+    let imageUrl = crop.image;
+    if (crop.image && !crop.image.startsWith('http')) {
+      const protocol = req.get('x-forwarded-proto') || (req.secure ? 'https' : 'http');
+      const host = req.get('host');
+      imageUrl = `${protocol}://${host}/uploads/crop/${crop.image}`;
+    }
+
     const cropWithImageUrl = {
       id: crop._id,
       name: crop.name,
@@ -200,7 +219,7 @@ router.get('/:id', async (req, res) => {
       sellerId: crop.sellerId,
       location: crop.location,
       added_date: crop.addedDate,
-      imageUrl: crop.image, // Already Cloudinary URL
+      imageUrl: imageUrl,
       createdAt: crop.createdAt,
       updatedAt: crop.updatedAt
     };
@@ -240,8 +259,8 @@ router.put('/:id', isAuthenticated, uploadCrop.single('cropImage'), async (req, 
 
     // Handle new image upload
     if (req.file) {
-      // Delete old image from Cloudinary if exists
-      if (crop.image) {
+      // Delete old image from Cloudinary if exists and is a Cloudinary URL
+      if (crop.image && crop.image.startsWith('http')) {
         await deleteImage(crop.image);
       }
       updateData.image = req.file.path; // Cloudinary URL
@@ -254,6 +273,15 @@ router.put('/:id', isAuthenticated, uploadCrop.single('cropImage'), async (req, 
     );
 
     console.log('Crop updated successfully:', updatedCrop._id);
+    
+    // Check if image is already a full URL (Cloudinary) or a local filename
+    let imageUrl = updatedCrop.image;
+    if (updatedCrop.image && !updatedCrop.image.startsWith('http')) {
+      const protocol = req.get('x-forwarded-proto') || (req.secure ? 'https' : 'http');
+      const host = req.get('host');
+      imageUrl = `${protocol}://${host}/uploads/crop/${updatedCrop.image}`;
+    }
+    
     res.status(200).json({
       message: 'Crop updated successfully!',
       crop: {
@@ -265,7 +293,7 @@ router.put('/:id', isAuthenticated, uploadCrop.single('cropImage'), async (req, 
         unit: updatedCrop.unit,
         seller: updatedCrop.seller,
         location: updatedCrop.location,
-        imageUrl: updatedCrop.image
+        imageUrl: imageUrl
       }
     });
   } catch (error) {
@@ -288,8 +316,8 @@ router.delete('/:id', isAuthenticated, async (req, res) => {
       return res.status(404).json({ error: 'Crop not found' });
     }
 
-    // Delete associated image from Cloudinary
-    if (crop.image) {
+    // Delete associated image from Cloudinary (only if it's a Cloudinary URL)
+    if (crop.image && crop.image.startsWith('http')) {
       await deleteImage(crop.image);
       console.log('Deleted image from Cloudinary');
     }

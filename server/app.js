@@ -88,7 +88,7 @@ app.use((req, res, next) => {
   res.setHeader(
     'Content-Security-Policy',
     `default-src 'self'; ` +
-    `img-src 'self' ${baseUrl} data: blob: https://res.cloudinary.com https://openweathermap.org; ` +
+    `img-src 'self' ${baseUrl} data: blob: https://res.cloudinary.com https://images.squarespace-cdn.com https://openweathermap.org; ` +
     `style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; ` +
     `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; ` +
     `font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com; ` +
