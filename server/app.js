@@ -1535,5 +1535,8 @@ io.on('connection', (socket) => {
 // Start Server
 const port = process.env.PORT || 3000;
 server.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+  const serverUrl = process.env.NODE_ENV === 'production' 
+    ? 'https://kisaan-connect-3.onrender.com' 
+    : `http://localhost:${port}`;
+  console.log(`Server running at ${serverUrl}`);
 });

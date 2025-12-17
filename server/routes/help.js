@@ -204,7 +204,7 @@ async function sendAdminNotification(ticket) {
         </div>
         
         <div style="text-align: center; margin-top: 30px;">
-          <a href="http://localhost:3000/admin-help.html" style="background: linear-gradient(45deg, #4caf50, #2e7d32); color: white; padding: 12px 25px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
+          <a href="https://kisaan-connect-3.onrender.com/admin-help.html" style="background: linear-gradient(45deg, #4caf50, #2e7d32); color: white; padding: 12px 25px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
             🎛️ Manage in Admin Dashboard
           </a>
         </div>
@@ -253,7 +253,7 @@ async function sendUserConfirmation(ticket) {
           <p>You can track your ticket status or provide additional information by replying to this email or visiting our help center.</p>
           
           <div style="text-align: center; margin-top: 30px;">
-            <a href="http://localhost:3000/help.html" style="background: linear-gradient(45deg, #4caf50, #2e7d32); color: white; padding: 12px 25px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
+            <a href="https://kisaan-connect-3.onrender.com/help.html" style="background: linear-gradient(45deg, #4caf50, #2e7d32); color: white; padding: 12px 25px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
               🎛️ Visit Help Center
             </a>
           </div>
@@ -320,7 +320,7 @@ async function sendResponseNotification(ticket, responseMessage, adminName) {
             </div>
             
             <div style="text-align: center; margin-top: 30px;">
-              <a href="http://localhost:3000/help.html" style="background: linear-gradient(45deg, #4caf50, #2e7d32); color: white; padding: 12px 25px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
+              <a href="https://kisaan-connect-3.onrender.com/help.html" style="background: linear-gradient(45deg, #4caf50, #2e7d32); color: white; padding: 12px 25px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
                 🎛️ Visit Help Center
               </a>
             </div>

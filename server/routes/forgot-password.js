@@ -65,7 +65,7 @@ router.post('/', async (req, res) => {
                    process.env.RENDER === '1' || 
                    req.get('host')?.includes('render.com')
       ? `https://${req.get('host')}`
-      : 'http://localhost:3000';
+      : 'https://kisaan-connect-3.onrender.com';
     const resetUrl = `${baseUrl}/reset-password.html?token=${resetToken}`;
     console.log('Generated reset URL:', resetUrl);
 
