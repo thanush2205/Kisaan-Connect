@@ -17,11 +17,14 @@ router.post('/', isAuthenticated, uploadCrop.single('cropImage'), async (req, re
   console.log('Received POST /crops request');
   console.log('Request body:', req.body);
   console.log('Uploaded file:', req.file);
+  console.log('Session data:', req.session);
+  console.log('Session user:', req.session.user);
 
   const { cropName, cropUnit, cropQuantity, cropPrice, sellerName, location } = req.body;
   const image = req.file ? req.file.path : null; // Cloudinary URL
 
   if (!cropName || !cropUnit || !cropQuantity || !cropPrice || !sellerName || !location) {
+    console.error('Validation failed: Missing required fields');
     if (image) {
       await deleteImage(image); // Delete from Cloudinary if validation fails
     }
@@ -33,11 +36,14 @@ router.post('/', isAuthenticated, uploadCrop.single('cropImage'), async (req, re
     const sellerId = req.session.user ? req.session.user.id : null;
 
     if (!sellerId) {
+      console.error('Authentication failed: No sellerId in session');
       if (image) {
         await deleteImage(image);
       }
       return res.status(401).json({ error: 'Authentication required' });
     }
+
+    console.log('Creating crop with sellerId:', sellerId);
 
     // Create new crop document
     const newCrop = new Crop({
@@ -57,10 +63,11 @@ router.post('/', isAuthenticated, uploadCrop.single('cropImage'), async (req, re
     res.status(200).json({ message: 'Crop added successfully!', cropId: savedCrop._id });
   } catch (error) {
     console.error('Error adding crop:', error);
+    console.error('Error stack:', error.stack);
     if (image) {
       await deleteImage(image); // Delete from Cloudinary on error
     }
-    res.status(500).json({ error: 'Failed to add crop' });
+    res.status(500).json({ error: 'Failed to add crop', details: error.message });
   }
 });
 

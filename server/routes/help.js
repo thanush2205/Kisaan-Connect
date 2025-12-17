@@ -118,15 +118,15 @@ function validateTicketData(data) {
 }
 
 // Email notification functions
-async function sendSupportNotificationEmails(ticket) {
+async function sendSupportNotificationEmails(ticket, req) {
   try {
     console.log(`📧 Attempting to send email notifications for ticket ${ticket.ticketId}`);
     
     // Send notification to admin (thanushreddy934@gmail.com)
-    const adminResult = await sendAdminNotification(ticket);
+    const adminResult = await sendAdminNotification(ticket, req);
     
     // Send confirmation to user
-    const userResult = await sendUserConfirmation(ticket);
+    const userResult = await sendUserConfirmation(ticket, req);
     
     if (adminResult.success || userResult.success) {
       console.log(`✅ Email notifications processed for ticket ${ticket.ticketId}`);
@@ -139,7 +139,7 @@ async function sendSupportNotificationEmails(ticket) {
   }
 }
 
-async function sendAdminNotification(ticket) {
+async function sendAdminNotification(ticket, req) {
   const priorityEmoji = {
     low: '🟢',
     medium: '🟡', 
@@ -155,6 +155,11 @@ async function sendAdminNotification(ticket) {
     equipment: '🚜',
     general: '💬'
   };
+
+  // Generate dynamic base URL based on request
+  const protocol = req.get('x-forwarded-proto') || (req.secure ? 'https' : 'http');
+  const host = req.get('host');
+  const baseUrl = `${protocol}://${host}`;
 
   const mailOptions = {
     from: process.env.EMAIL_USER,
@@ -204,7 +209,7 @@ async function sendAdminNotification(ticket) {
         </div>
         
         <div style="text-align: center; margin-top: 30px;">
-          <a href="https://kisaan-connect-3.onrender.com/admin-help.html" style="background: linear-gradient(45deg, #4caf50, #2e7d32); color: white; padding: 12px 25px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
+          <a href="${baseUrl}/admin-help.html" style="background: linear-gradient(45deg, #4caf50, #2e7d32); color: white; padding: 12px 25px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
             🎛️ Manage in Admin Dashboard
           </a>
         </div>
@@ -219,7 +224,12 @@ async function sendAdminNotification(ticket) {
   return sendEmailSafely(mailOptions);
 }
 
-async function sendUserConfirmation(ticket) {
+async function sendUserConfirmation(ticket, req) {
+  // Generate dynamic base URL
+  const protocol = req.get('x-forwarded-proto') || (req.secure ? 'https' : 'http');
+  const host = req.get('host');
+  const baseUrl = `${protocol}://${host}`;
+
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: ticket.email,
@@ -253,7 +263,7 @@ async function sendUserConfirmation(ticket) {
           <p>You can track your ticket status or provide additional information by replying to this email or visiting our help center.</p>
           
           <div style="text-align: center; margin-top: 30px;">
-            <a href="https://kisaan-connect-3.onrender.com/help.html" style="background: linear-gradient(45deg, #4caf50, #2e7d32); color: white; padding: 12px 25px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
+            <a href="${baseUrl}/help.html" style="background: linear-gradient(45deg, #4caf50, #2e7d32); color: white; padding: 12px 25px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
               🎛️ Visit Help Center
             </a>
           </div>
@@ -280,8 +290,13 @@ function getExpectedResponseTime(priority) {
   return responseTimes[priority] || '24-48 hours';
 }
 
-async function sendResponseNotification(ticket, responseMessage, adminName) {
+async function sendResponseNotification(ticket, responseMessage, adminName, req) {
   try {
+    // Generate dynamic base URL
+    const protocol = req.get('x-forwarded-proto') || (req.secure ? 'https' : 'http');
+    const host = req.get('host');
+    const baseUrl = `${protocol}://${host}`;
+
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: ticket.email,
@@ -320,7 +335,7 @@ async function sendResponseNotification(ticket, responseMessage, adminName) {
             </div>
             
             <div style="text-align: center; margin-top: 30px;">
-              <a href="https://kisaan-connect-3.onrender.com/help.html" style="background: linear-gradient(45deg, #4caf50, #2e7d32); color: white; padding: 12px 25px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
+              <a href="${baseUrl}/help.html" style="background: linear-gradient(45deg, #4caf50, #2e7d32); color: white; padding: 12px 25px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
                 🎛️ Visit Help Center
               </a>
             </div>
@@ -389,7 +404,7 @@ router.post('/tickets', optionalAuth, async (req, res) => {
     console.log('Support ticket created:', savedTicket.ticketId);
 
     // Send notification emails
-    await sendSupportNotificationEmails(savedTicket);
+    await sendSupportNotificationEmails(savedTicket, req);
 
     // Send response
     res.status(201).json({
@@ -580,7 +595,7 @@ router.post('/tickets/:id/response', requireAdmin, async (req, res) => {
     }
 
     // Send email notification to user about the response
-    await sendResponseNotification(ticket, message.trim(), req.session.user.fullName);
+    await sendResponseNotification(ticket, message.trim(), req.session.user.fullName, req);
 
     // Send push notification to user
     try {

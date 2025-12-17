@@ -60,12 +60,10 @@ router.post('/', async (req, res) => {
     });
     console.log('Reset token stored for:', email);
 
-    // Use dynamic base URL for production
-    const baseUrl = process.env.NODE_ENV === 'production' || 
-                   process.env.RENDER === '1' || 
-                   req.get('host')?.includes('render.com')
-      ? `https://${req.get('host')}`
-      : 'https://kisaan-connect-3.onrender.com';
+    // Use dynamic base URL - auto-detect environment
+    const protocol = req.get('x-forwarded-proto') || (req.secure ? 'https' : 'http');
+    const host = req.get('host');
+    const baseUrl = `${protocol}://${host}`;
     const resetUrl = `${baseUrl}/reset-password.html?token=${resetToken}`;
     console.log('Generated reset URL:', resetUrl);
 

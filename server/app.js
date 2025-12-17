@@ -38,6 +38,11 @@ const io = socketIo(server, {
 // Connect to MongoDB
 connectDB();
 
+// Trust proxy - important for Render.com
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -70,6 +75,7 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'fallback_secret_change_in_production',
   resave: false,
   saveUninitialized: false,
+  proxy: process.env.NODE_ENV === 'production', // Trust first proxy (important for Render)
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
@@ -1535,8 +1541,5 @@ io.on('connection', (socket) => {
 // Start Server
 const port = process.env.PORT || 3000;
 server.listen(port, () => {
-  const serverUrl = process.env.NODE_ENV === 'production' 
-    ? 'https://kisaan-connect-3.onrender.com' 
-    : `http://localhost:${port}`;
-  console.log(`Server running at ${serverUrl}`);
+  console.log(`Server running at http://localhost:${port}`);
 });
