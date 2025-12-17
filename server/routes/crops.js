@@ -28,7 +28,20 @@ const isAuthenticated = (req, res, next) => {
 };
 
 // POST /crops - Add a new crop
-router.post('/', isAuthenticated, uploadCrop.single('cropImage'), async (req, res) => {
+router.post('/', isAuthenticated, (req, res, next) => {
+  // Wrap multer upload to catch errors
+  uploadCrop.single('cropImage')(req, res, (err) => {
+    if (err) {
+      console.error('❌ Cloudinary Upload Error:', err);
+      return res.status(400).json({ 
+        error: 'Image upload failed', 
+        details: err.message,
+        cloudinaryError: true
+      });
+    }
+    next();
+  });
+}, async (req, res) => {
   console.log('Received POST /crops request');
   console.log('Request body:', req.body);
   console.log('Uploaded file:', req.file);
