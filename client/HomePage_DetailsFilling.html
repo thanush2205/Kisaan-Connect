@@ -882,51 +882,6 @@ body.dark-mode .vibrating-text {
   }
 }
 
-/* Cart Summary Section */
-.cart-summary-section {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 10px;
-  padding: 15px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
-  max-width: 300px;
-  font-size: 14px;
-}
-
-body.dark-mode .cart-summary-section {
-  background: #2c2c2c;
-  border-color: #404040;
-  color: #e0e0e0;
-}
-
-.cart-summary-content h4 {
-  margin: 0 0 10px 0;
-  font-size: 16px;
-  color: #28a745;
-}
-
-body.dark-mode .cart-summary-content h4 {
-  color: #4ade80;
-}
-
-.cart-summary-details p {
-  margin: 5px 0;
-}
-
-.cart-total {
-  font-weight: bold;
-  border-top: 1px solid #eee;
-  padding-top: 8px;
-  margin-top: 8px;
-}
-
-body.dark-mode .cart-total {
-  border-top-color: #404040;
-}
 
 .crop-card {
   background: white;
@@ -1297,7 +1252,7 @@ body.dark-mode .crop-form input, body.dark-mode .crop-form select {
 #addCropButton {
   position: fixed;
   bottom: 20px;
-  right: 20px;
+  right: 20px; /* Back to right side */
   background: linear-gradient(135deg, #81c784, #4caf50);
   color: white;
   border: none;
@@ -1308,6 +1263,7 @@ body.dark-mode .crop-form input, body.dark-mode .crop-form select {
   box-shadow: 0 6px 20px rgba(76, 175, 80, 0.3);
   cursor: pointer;
   transition: all 0.3s ease;
+  z-index: 999;
 }
 
 /* No crops and error messages */
@@ -2084,18 +2040,6 @@ body.dark-mode .results-info {
   <!-- Crop Listings Grid -->
   <div class="crop-grid" id="cropGrid">
     <!-- Crops will be added here dynamically -->
-  </div>
-
-  <!-- Cart Summary Section -->
-  <div id="cartSummarySection" class="cart-summary-section" style="display: none;">
-    <div class="cart-summary-content">
-      <h4>Cart Summary</h4>
-      <div class="cart-summary-details">
-        <p>Items: <span id="cartSummaryCount">0</span></p>
-        <div id="cartSummaryItems"></div>
-        <p class="cart-total">Total: ₹<span id="cartSummaryTotal">0</span></p>
-      </div>
-    </div>
   </div>
 
   <!-- Toast Notification Container -->
@@ -3298,6 +3242,12 @@ body.dark-mode .results-info {
       const floatingWidget = document.getElementById('floatingCartWidget');
       const floatingCount = document.getElementById('floatingCartCount');
       const floatingTotal = document.getElementById('floatingCartTotal');
+      
+      // Check if elements exist before updating
+      if (!floatingWidget || !floatingCount || !floatingTotal) {
+        console.warn('Floating cart widget elements not found on this page');
+        return;
+      }
       
       if (totalItems > 0) {
         floatingWidget.style.display = 'block';

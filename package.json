@@ -23,6 +23,7 @@
   "dependencies": {
     "bcrypt": "^5.1.1",
     "cloudinary": "^1.41.3",
+    "cors": "^2.8.5",
     "curl": "^0.1.4",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
