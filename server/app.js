@@ -20,6 +20,9 @@ const Message = require('./models/Message');
 // Initialize notification service (Firebase) early
 const notificationService = require('./services/notificationService');
 
+// Initialize Cloudinary configuration
+require('./config/cloudinary');
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
@@ -75,17 +78,17 @@ app.use(session({
   }
 }));
 
-// Content Security Policy for image loading
+// Content Security Policy for image loading (including Cloudinary)
 app.use((req, res, next) => {
   const host = req.get('host');
   const protocol = req.secure || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
   const baseUrl = `${protocol}://${host}`;
 
-  // Allow images from same origin and current domain, plus weather API
+  // Allow images from same origin, Cloudinary, and current domain, plus weather API
   res.setHeader(
     'Content-Security-Policy',
     `default-src 'self'; ` +
-    `img-src 'self' ${baseUrl} data: blob: https://openweathermap.org; ` +
+    `img-src 'self' ${baseUrl} data: blob: https://res.cloudinary.com https://openweathermap.org; ` +
     `style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; ` +
     `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; ` +
     `font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com; ` +

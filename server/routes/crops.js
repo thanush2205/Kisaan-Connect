@@ -1,38 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 const Crop = require('../models/Crop');
 const Farmer = require('../models/Farmer');
-
-// File Upload Setup for Crop Images
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../../uploads/crop');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-      console.log('Created uploads directory:', uploadDir);
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    // Extract original filename without any previous timestamps
-    let originalName = file.originalname;
-
-    // If the original name already contains a timestamp pattern, extract just the actual filename
-    const timestampPattern = /^\d+-(.+)$/;
-    const match = originalName.match(timestampPattern);
-    if (match) {
-      originalName = match[1]; // Get the part after the timestamp
-    }
-
-    const filename = `${Date.now()}-${originalName}`;
-    console.log('Generated filename:', filename);
-    cb(null, filename);
-  }
-});
-const upload = multer({ storage });
+const { uploadCrop, deleteImage } = require('../config/cloudinary');
 
 // Middleware to check if user is authenticated
 const isAuthenticated = (req, res, next) => {
@@ -43,18 +13,17 @@ const isAuthenticated = (req, res, next) => {
 };
 
 // POST /crops - Add a new crop
-router.post('/', isAuthenticated, upload.single('cropImage'), async (req, res) => {
+router.post('/', isAuthenticated, uploadCrop.single('cropImage'), async (req, res) => {
   console.log('Received POST /crops request');
   console.log('Request body:', req.body);
   console.log('Uploaded file:', req.file);
 
   const { cropName, cropUnit, cropQuantity, cropPrice, sellerName, location } = req.body;
-  const image = req.file ? req.file.filename : null;
-  const filePath = req.file ? path.join(__dirname, '../../uploads/crop', req.file.filename) : null;
+  const image = req.file ? req.file.path : null; // Cloudinary URL
 
   if (!cropName || !cropUnit || !cropQuantity || !cropPrice || !sellerName || !location) {
-    if (filePath && fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath); // Delete uploaded file if validation fails
+    if (image) {
+      await deleteImage(image); // Delete from Cloudinary if validation fails
     }
     return res.status(400).json({ error: 'All fields are required' });
   }
@@ -64,8 +33,8 @@ router.post('/', isAuthenticated, upload.single('cropImage'), async (req, res) =
     const sellerId = req.session.user ? req.session.user.id : null;
 
     if (!sellerId) {
-      if (filePath && fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath); // Delete uploaded file if not authenticated
+      if (image) {
+        await deleteImage(image);
       }
       return res.status(401).json({ error: 'Authentication required' });
     }
@@ -88,8 +57,8 @@ router.post('/', isAuthenticated, upload.single('cropImage'), async (req, res) =
     res.status(200).json({ message: 'Crop added successfully!', cropId: savedCrop._id });
   } catch (error) {
     console.error('Error adding crop:', error);
-    if (filePath && fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath); // Delete file on error
+    if (image) {
+      await deleteImage(image); // Delete from Cloudinary on error
     }
     res.status(500).json({ error: 'Failed to add crop' });
   }
@@ -175,10 +144,10 @@ router.get('/', async (req, res) => {
       quantity: crop.quantity,
       unit: crop.unit,
       seller: crop.seller,
-      sellerId: crop.sellerId || (defaultSeller ? defaultSeller._id : null),
+      sellerId: crop.sellerId,
       location: crop.location,
       added_date: crop.addedDate,
-      imageUrl: crop.image ? `${baseUrl}/uploads/crop/${crop.image}` : null,
+      imageUrl: crop.image, // Already Cloudinary URL
       createdAt: crop.createdAt,
       updatedAt: crop.updatedAt
     }));
@@ -231,7 +200,7 @@ router.get('/:id', async (req, res) => {
       sellerId: crop.sellerId,
       location: crop.location,
       added_date: crop.addedDate,
-      imageUrl: crop.image ? `/uploads/crop/${crop.image}` : null,
+      imageUrl: crop.image, // Already Cloudinary URL
       createdAt: crop.createdAt,
       updatedAt: crop.updatedAt
     };
@@ -247,7 +216,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // PUT /crops/:id - Update crop (only by owner or admin)
-router.put('/:id', isAuthenticated, upload.single('cropImage'), async (req, res) => {
+router.put('/:id', isAuthenticated, uploadCrop.single('cropImage'), async (req, res) => {
   console.log('Received PUT /crops/:id request for ID:', req.params.id);
   console.log('Request body:', req.body);
 
@@ -271,14 +240,11 @@ router.put('/:id', isAuthenticated, upload.single('cropImage'), async (req, res)
 
     // Handle new image upload
     if (req.file) {
-      // Delete old image if exists
+      // Delete old image from Cloudinary if exists
       if (crop.image) {
-        const oldImagePath = path.join(__dirname, '../../uploads/crop', crop.image);
-        if (fs.existsSync(oldImagePath)) {
-          fs.unlinkSync(oldImagePath);
-        }
+        await deleteImage(crop.image);
       }
-      updateData.image = req.file.filename;
+      updateData.image = req.file.path; // Cloudinary URL
     }
 
     const updatedCrop = await Crop.findByIdAndUpdate(
@@ -299,13 +265,13 @@ router.put('/:id', isAuthenticated, upload.single('cropImage'), async (req, res)
         unit: updatedCrop.unit,
         seller: updatedCrop.seller,
         location: updatedCrop.location,
-        imageUrl: updatedCrop.image ? `/uploads/crop/${updatedCrop.image}` : null
+        imageUrl: updatedCrop.image
       }
     });
   } catch (error) {
     console.error('Error updating crop:', error);
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+    if (req.file && req.file.path) {
+      await deleteImage(req.file.path);
     }
     res.status(500).json({ error: 'Failed to update crop', details: error.message });
   }
@@ -322,13 +288,10 @@ router.delete('/:id', isAuthenticated, async (req, res) => {
       return res.status(404).json({ error: 'Crop not found' });
     }
 
-    // Delete associated image file
+    // Delete associated image from Cloudinary
     if (crop.image) {
-      const imagePath = path.join(__dirname, '../../uploads/crop', crop.image);
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
-        console.log('Deleted image file:', imagePath);
-      }
+      await deleteImage(crop.image);
+      console.log('Deleted image from Cloudinary');
     }
 
     await Crop.findByIdAndDelete(req.params.id);
