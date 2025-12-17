@@ -269,6 +269,21 @@ Click "Add Environment Variable" for each:
    ./firebase-service-account.json
    ```
 
+10. **CLOUDINARY_CLOUD_NAME**
+   ```
+   dstgjlfd7
+   ```
+
+11. **CLOUDINARY_API_KEY**
+   ```
+   456913627256189
+   ```
+
+12. **CLOUDINARY_API_SECRET**
+   ```
+   THTFciY4bYJSCjkyNGuOSmpHrG4
+   ```
+
 ### 7.3 Add Firebase Service Account (Secret File)
 
 1. Scroll to "Secret Files" section
@@ -276,6 +291,8 @@ Click "Add Environment Variable" for each:
 3. **Filename:** `firebase-service-account.json`
 4. **Contents:** Open your local `firebase-service-account.json` and paste the entire content
 5. Click "Save"
+
+**Note**: Cloudinary credentials enable cloud-based image storage for profile pictures and crop images. All images will be stored on Cloudinary's CDN for fast, global access.
 
 ---
 
