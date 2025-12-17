@@ -95,9 +95,9 @@ router.post('/start', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Participant not found' });
     }
 
-    // Check if chat already exists
-    console.log('🔍 Checking for existing chat...');
-    let chat = await Chat.findChatBetweenUsers(currentUserId, participantId, cropId);
+    // Check if chat already exists (regardless of crop - one chat per user pair)
+    console.log('🔍 Checking for existing chat between users...');
+    let chat = await Chat.findChatBetweenUsers(currentUserId, participantId);
     console.log('💬 Existing chat:', chat ? `Found: ${chat._id}` : 'Not found');
     
     if (!chat) {
@@ -114,6 +114,13 @@ router.post('/start', requireAuth, async (req, res) => {
       }
     } else {
       console.log('💬 Using existing chat');
+      // Optionally update the cropId if a new one is provided
+      if (cropId && (!chat.cropId || chat.cropId.toString() !== cropId)) {
+        console.log('📝 Updating chat cropId to:', cropId);
+        chat.cropId = cropId;
+        await chat.save();
+        await chat.populate('cropId', 'name imageUrl');
+      }
     }
 
     const otherParticipant = chat.participants.find(p => !p._id.equals(currentUserId));

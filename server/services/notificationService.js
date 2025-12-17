@@ -1,5 +1,6 @@
 const admin = require('firebase-admin');
 const path = require('path');
+const fs = require('fs');
 
 // Initialize Firebase Admin SDK
 let firebaseInitialized = false;
@@ -10,8 +11,28 @@ function initializeFirebase() {
   }
 
   try {
-    const serviceAccountPath = path.join(__dirname, '../../firebase-service-account.json');
-    const serviceAccount = require(serviceAccountPath);
+    let serviceAccount;
+
+    // Try to get service account from environment variable first (for production)
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      console.log('📝 Using Firebase service account from environment variable');
+      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    } 
+    // Otherwise try to load from file (for local development)
+    else if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+      const serviceAccountPath = path.join(__dirname, '../..', process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
+      if (fs.existsSync(serviceAccountPath)) {
+        console.log('📝 Using Firebase service account from file:', serviceAccountPath);
+        serviceAccount = require(serviceAccountPath);
+      } else {
+        console.warn('⚠️  Firebase service account file not found:', serviceAccountPath);
+      }
+    }
+
+    if (!serviceAccount) {
+      console.warn('⚠️  No Firebase service account configured. Push notifications will not work.');
+      return;
+    }
 
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
@@ -22,7 +43,8 @@ function initializeFirebase() {
     console.log('✅ Firebase Admin SDK initialized successfully');
   } catch (error) {
     console.error('❌ Error initializing Firebase Admin SDK:', error.message);
-    throw error;
+    // Don't throw error - allow app to run without push notifications
+    console.warn('⚠️  App will continue without push notification support');
   }
 }
 
