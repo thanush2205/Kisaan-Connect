@@ -167,9 +167,9 @@ async function sendChatNotification(recipientFcmToken, messageData) {
     body: messageData.messageContent.substring(0, 100), // Limit message preview
     data: {
       type: 'chat_message',
-      chatId: messageData.chatId,
-      senderId: messageData.senderId,
-      senderName: messageData.senderName,
+      chatId: String(messageData.chatId || ''),
+      senderId: String(messageData.senderId || ''),
+      senderName: String(messageData.senderName || ''),
       timestamp: new Date().toISOString(),
       link: `/chats.html?chatId=${messageData.chatId}`
     }
@@ -207,9 +207,9 @@ async function sendAdminResponseNotification(userFcmToken, responseData) {
     body: bodyMessage,
     data: {
       type: 'admin_response',
-      ticketId: responseData.ticketId,
-      status: responseData.status,
-      response: responseData.adminResponse,
+      ticketId: String(responseData.ticketId || ''),
+      status: String(responseData.status || ''),
+      response: String(responseData.adminResponse || '').substring(0, 200), // Limit and ensure string
       timestamp: new Date().toISOString(),
       link: '/help.html'
     }
@@ -229,10 +229,10 @@ async function sendNewTicketNotificationToAdmin(adminFcmTokens, ticketData) {
     body: `${ticketData.farmerName} submitted a ${ticketData.priority} priority ticket`,
     data: {
       type: 'new_ticket',
-      ticketId: ticketData.ticketId,
-      farmerName: ticketData.farmerName,
-      category: ticketData.category,
-      priority: ticketData.priority,
+      ticketId: String(ticketData.ticketId || ''),
+      farmerName: String(ticketData.farmerName || ''),
+      category: String(ticketData.category || ''),
+      priority: String(ticketData.priority || ''),
       link: '/admin-help.html'
     }
   };
