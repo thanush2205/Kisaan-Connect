@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Configuration Test - Kisaan Connect</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .details {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .details h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .details pre {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+            border: 1px solid #dee2e6;
+        }
+
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .login-required {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .login-required a {
+            color: #856404;
+            font-weight: 600;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Email Configuration Test</h1>
+        <p class="subtitle">Test your Gmail SMTP configuration for Kisaan Connect</p>
+
+        <div id="loginRequired" class="login-required" style="display: none;">
+            ⚠️ You must be logged in as an admin to test email configuration.
+            <a href="/Login.html">Login here</a>
+        </div>
+
+        <div id="statusMessage" class="status"></div>
+
+        <button id="testButton" onclick="testEmail()">
+            <span id="buttonText">Send Test Email</span>
+        </button>
+
+        <div id="details" class="details" style="display: none;">
+            <h3>Test Results:</h3>
+            <pre id="detailsContent"></pre>
+        </div>
+    </div>
+
+    <script>
+        async function checkAuth() {
+            try {
+                const response = await fetch('/auth/check-login', {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                return data.loggedIn && data.user;
+            } catch (error) {
+                return false;
+            }
+        }
+
+        async function testEmail() {
+            const button = document.getElementById('testButton');
+            const buttonText = document.getElementById('buttonText');
+            const statusMessage = document.getElementById('statusMessage');
+            const details = document.getElementById('details');
+            const detailsContent = document.getElementById('detailsContent');
+
+            // Check if user is logged in
+            const isLoggedIn = await checkAuth();
+            if (!isLoggedIn) {
+                document.getElementById('loginRequired').style.display = 'block';
+                return;
+            }
+
+            // Disable button and show loading
+            button.disabled = true;
+            buttonText.innerHTML = '<span class="loader"></span> Testing email configuration...';
+            statusMessage.style.display = 'none';
+            details.style.display = 'none';
+
+            try {
+                const response = await fetch('/help/test-email', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    statusMessage.className = 'status success';
+                    statusMessage.textContent = `✅ Success! Test email sent to ${data.recipient}`;
+                    statusMessage.style.display = 'block';
+
+                    detailsContent.textContent = JSON.stringify(data, null, 2);
+                    details.style.display = 'block';
+                } else {
+                    statusMessage.className = 'status error';
+                    statusMessage.textContent = `❌ Failed: ${data.message || 'Unknown error'}`;
+                    statusMessage.style.display = 'block';
+
+                    detailsContent.textContent = JSON.stringify(data, null, 2);
+                    details.style.display = 'block';
+                }
+            } catch (error) {
+                statusMessage.className = 'status error';
+                statusMessage.textContent = `❌ Error: ${error.message}`;
+                statusMessage.style.display = 'block';
+
+                detailsContent.textContent = error.stack;
+                details.style.display = 'block';
+            } finally {
+                button.disabled = false;
+                buttonText.textContent = 'Send Test Email';
+            }
+        }
+
+        // Check auth on page load
+        window.addEventListener('DOMContentLoaded', async () => {
+            const isLoggedIn = await checkAuth();
+            if (!isLoggedIn) {
+                document.getElementById('loginRequired').style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
