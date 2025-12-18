@@ -7,18 +7,24 @@ const notificationService = require('../services/notificationService');
 
 // Email transporter configuration with improved error handling
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // Use STARTTLS
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
   },
-  timeout: 15000, // 15 seconds timeout
-  connectionTimeout: 15000, // 15 seconds connection timeout
-  greetingTimeout: 10000, // 10 seconds greeting timeout
-  socketTimeout: 15000, // 15 seconds socket timeout
-  pool: true, // Use connection pooling
-  maxConnections: 1, // Limit concurrent connections
-  rateLimit: 3 // Limit to 3 emails per second
+  tls: {
+    rejectUnauthorized: false, // Allow self-signed certificates
+    ciphers: 'SSLv3'
+  },
+  timeout: 30000, // 30 seconds timeout
+  connectionTimeout: 30000,
+  greetingTimeout: 30000,
+  socketTimeout: 30000,
+  pool: false, // Disable pooling for better connection management
+  debug: true, // Enable debug output
+  logger: true // Enable logging
 });
 
 // Safe email sending function with fallback
@@ -710,5 +716,64 @@ function getExpectedResponseTime(priority) {
   };
   return times[priority] || '24-48 hours';
 }
+
+// Test email endpoint (admin only)
+router.post('/test-email', requireAdmin, async (req, res) => {
+  try {
+    console.log('🧪 Testing email configuration...');
+    console.log('📧 EMAIL_USER:', process.env.EMAIL_USER);
+    console.log('📧 EMAIL_PASS:', process.env.EMAIL_PASS ? 'Set (length: ' + process.env.EMAIL_PASS.length + ')' : 'Not set');
+    
+    // First, verify the transporter
+    await transporter.verify();
+    console.log('✅ Transporter verified successfully');
+    
+    // Send test email
+    const testMailOptions = {
+      from: `"Kisaan Connect Support" <${process.env.EMAIL_USER}>`,
+      to: req.session.user.email,
+      subject: '🧪 Test Email - Kisaan Connect',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #28a745;">✅ Email Configuration Test Successful!</h2>
+          <p>This is a test email from Kisaan Connect.</p>
+          <p><strong>Sent at:</strong> ${new Date().toLocaleString()}</p>
+          <p><strong>Environment:</strong> ${process.env.NODE_ENV || 'development'}</p>
+          <hr style="border: 1px solid #e0e0e0; margin: 20px 0;">
+          <p style="color: #666; font-size: 12px;">
+            If you received this email, your email configuration is working correctly!
+          </p>
+        </div>
+      `
+    };
+    
+    const result = await sendEmailSafely(testMailOptions);
+    
+    if (result.success) {
+      res.json({ 
+        success: true, 
+        message: 'Test email sent successfully!',
+        messageId: result.messageId,
+        recipient: req.session.user.email
+      });
+    } else {
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to send test email',
+        error: result.error,
+        reason: result.reason
+      });
+    }
+  } catch (error) {
+    console.error('❌ Email test failed:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Email test failed',
+      error: error.message,
+      code: error.code,
+      command: error.command
+    });
+  }
+});
 
 module.exports = router;
