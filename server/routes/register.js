@@ -1,31 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
 const bcrypt = require('bcrypt');
 const Farmer = require('../models/Farmer');
-const fs = require('fs');
-const path = require('path');
-
-// File Upload Setup
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../../uploads/profile'); // Absolute path to /home/rgukt/project/kisaanconnect/uploads
-    // Ensure the directory exists
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-      console.log('Created uploads directory:', uploadDir);
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const filename = `${Date.now()}-${file.originalname}`;
-    cb(null, filename);
-  }
-});
-const upload = multer({ storage });
+const { uploadProfile, deleteImage } = require('../config/cloudinary');
 
 // Register Endpoint
-router.post('/', upload.single('profilePicture'), async (req, res) => {
+router.post('/', uploadProfile.single('profilePicture'), async (req, res) => {
   console.log('Received POST /register request');
   console.log('Request body:', req.body);
   console.log('Uploaded file:', req.file);
@@ -33,17 +13,14 @@ router.post('/', upload.single('profilePicture'), async (req, res) => {
   const {
     fullName, phoneNumber, email, password, inputState, inputDistrict, village_town, pinCode
   } = req.body;
-  const profilePicture = req.file ? req.file.filename : null;
-  const filePath = req.file ? path.join(__dirname, '../../uploads/profile', req.file.filename) : null;
+  
+  // Cloudinary stores the full URL in req.file.path
+  const profilePicture = req.file ? req.file.path : null;
 
   console.log('Parsed form data:', {
-    fullName, phoneNumber, email, password, inputState, inputDistrict, village_town, pinCode, profilePicture
+    fullName, phoneNumber, email, password, inputState, inputDistrict, village_town, pinCode
   });
-  console.log('Calculated file path:', filePath);
-  // Verify file exists after upload
-  if (filePath) {
-    console.log('File exists after upload:', fs.existsSync(filePath));
-  }
+  console.log('Cloudinary image URL:', profilePicture);
 
   try {
     console.log('Checking for duplicate phone number or email:', phoneNumber, email);
@@ -59,28 +36,17 @@ router.post('/', upload.single('profilePicture'), async (req, res) => {
     console.log('Duplicate check result:', existingFarmer);
 
     if (existingFarmer) {
+      // Delete uploaded image from Cloudinary if duplicate found
+      if (profilePicture) {
+        await deleteImage(profilePicture);
+      }
+      
       if (existingFarmer.phoneNumber === phoneNumber) {
         console.log('Duplicate phone number found');
-        if (filePath && fs.existsSync(filePath)) {
-          fs.unlink(filePath, (err) => {
-            if (err) console.error('Error deleting file:', err);
-            else console.log('Duplicate file deleted:', filePath);
-          });
-        } else {
-          console.log('File not found at:', filePath);
-        }
         return res.status(400).json({ error: 'Phone number already registered.Please Login to your Account' });
       }
       if (existingFarmer.email === email) {
         console.log('Duplicate email found');
-        if (filePath && fs.existsSync(filePath)) {
-          fs.unlink(filePath, (err) => {
-            if (err) console.error('Error deleting file:', err);
-            else console.log('Duplicate file deleted:', filePath);
-          });
-        } else {
-          console.log('File not found at:', filePath);
-        }
         return res.status(400).json({ error: 'Email already registered.Please Login to your Account' });
       }
     }
@@ -114,14 +80,12 @@ router.post('/', upload.single('profilePicture'), async (req, res) => {
     res.status(200).json({ message: 'Farmer registered successfully!' });
   } catch (error) {
     console.error('Error in /register endpoint:', error);
-    if (filePath && fs.existsSync(filePath)) {
-      fs.unlink(filePath, (err) => {
-        if (err) console.error('Error deleting file:', err);
-        else console.log('Error file deleted:', filePath);
-      });
-    } else {
-      console.log('File not found at:', filePath);
+    
+    // Delete uploaded image from Cloudinary on error
+    if (profilePicture) {
+      await deleteImage(profilePicture);
     }
+    
     if (error.code === 11000) { // MongoDB duplicate key error
       console.log('Duplicate entry error detected');
       return res.status(400).json({ error: 'Duplicate entry detected' });

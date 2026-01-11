@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const session = require('express-session');
 const path = require('path');
 const fs = require('fs');
@@ -17,17 +18,58 @@ const socketIo = require('socket.io');
 const Chat = require('./models/Chat');
 const Message = require('./models/Message');
 
+// Initialize notification service (Firebase) early
+const notificationService = require('./services/notificationService');
+
+// Initialize Cloudinary configuration
+require('./config/cloudinary');
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
+    origin: process.env.NODE_ENV === 'production' 
+      ? [process.env.FRONTEND_URL || 'https://kisaan-connect.onrender.com']
+      : "*",
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
 // Connect to MongoDB
 connectDB();
+
+// Trust proxy - important for Render.com
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
+// CORS Configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Allow localhost and production domain
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'https://kisaan-connect-3.onrender.com',
+      'https://kisaan-connect.onrender.com'
+    ];
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow all origins for now
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  exposedHeaders: ['Set-Cookie']
+};
+
+app.use(cors(corsOptions));
 
 // Middleware
 app.use(express.json());
@@ -58,30 +100,33 @@ app.use('/crop', express.static(path.join(__dirname, '../uploads/crop')));
 
 // Session Middleware
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'fallback_secret',
+  secret: process.env.SESSION_SECRET || 'fallback_secret_change_in_production',
   resave: false,
   saveUninitialized: false,
+  proxy: process.env.NODE_ENV === 'production', // Trust first proxy (important for Render)
   cookie: {
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
   }
 }));
 
-// Content Security Policy for image loading
+// Content Security Policy for image loading (including Cloudinary)
 app.use((req, res, next) => {
   const host = req.get('host');
   const protocol = req.secure || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
   const baseUrl = `${protocol}://${host}`;
 
-  // Allow images from same origin and current domain, plus weather API
+  // Allow images from same origin, Cloudinary, and current domain, plus weather API
   res.setHeader(
     'Content-Security-Policy',
     `default-src 'self'; ` +
-    `img-src 'self' ${baseUrl} data: blob: https://openweathermap.org; ` +
+    `img-src 'self' ${baseUrl} data: blob: https://res.cloudinary.com https://images.squarespace-cdn.com https://openweathermap.org; ` +
     `style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; ` +
     `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; ` +
     `font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com; ` +
-    `connect-src 'self' ${baseUrl} https://api.openweathermap.org https://openweathermap.org;`
+    `connect-src 'self' ${baseUrl} https://api.openweathermap.org https://openweathermap.org https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;`
   );
 
   next();
@@ -212,6 +257,16 @@ app.get('/uploads/crop/default.jpg', (req, res) => {
   res.setHeader('Content-Type', 'image/svg+xml');
   res.setHeader('Cache-Control', 'public, max-age=86400');
   res.send(defaultImageSvg);
+});
+
+// Health check endpoint for monitoring
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development'
+  });
 });
 
 // Serve Landing Page (index.html) at Root
@@ -426,15 +481,32 @@ app.get('/create-test-tickets', async (req, res) => {
 });
 
 // Logout Endpoint
-app.get('/logout', (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      console.error('Error destroying session:', err);
-      return res.status(500).json({ error: 'Logout failed' });
+app.get('/logout', async (req, res) => {
+  try {
+    // Clear FCM token from database before destroying session
+    if (req.session.user && req.session.user.id) {
+      const Farmer = require('./models/Farmer');
+      await Farmer.findByIdAndUpdate(req.session.user.id, { 
+        fcmToken: null 
+      });
+      console.log(`🔓 Cleared FCM token for user: ${req.session.user.id}`);
     }
-    console.log('User logged out successfully');
-    res.redirect('/');
-  });
+    
+    req.session.destroy((err) => {
+      if (err) {
+        console.error('Error destroying session:', err);
+        return res.status(500).json({ error: 'Logout failed' });
+      }
+      console.log('User logged out successfully');
+      res.redirect('/');
+    });
+  } catch (error) {
+    console.error('Error during logout:', error);
+    // Still logout even if token clear fails
+    req.session.destroy((err) => {
+      res.redirect('/');
+    });
+  }
 });
 
 // Serve User Data
@@ -457,6 +529,34 @@ app.get('/api/user/admin-check', (req, res) => {
     res.json({ isAdmin: true, email: req.session.user.email });
   } else {
     res.json({ isAdmin: false });
+  }
+});
+
+// Save FCM token for user
+app.post('/api/user/fcm-token', async (req, res) => {
+  try {
+    if (!req.session.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { fcmToken } = req.body;
+    
+    if (!fcmToken) {
+      return res.status(400).json({ error: 'FCM token is required' });
+    }
+
+    const Farmer = require('./models/Farmer');
+    
+    // Update user's FCM token
+    await Farmer.findByIdAndUpdate(req.session.user.id, {
+      fcmToken: fcmToken
+    });
+
+    console.log('✅ FCM token saved for user:', req.session.user.fullName);
+    res.json({ success: true, message: 'FCM token saved successfully' });
+  } catch (error) {
+    console.error('❌ Error saving FCM token:', error);
+    res.status(500).json({ error: 'Failed to save FCM token' });
   }
 });
 
@@ -502,7 +602,7 @@ app.get('/api/admin/help-queries', async (req, res) => {
     return res.status(401).json({ success: false, error: 'Authentication required' });
   }
 
-  const adminEmails = ['admin@kisaanconnect.com', 'support@kisaanconnect.com', 'thanushreddy934@gmail.com'];
+  const adminEmails = ['admin@kisaanconnect.com', 'support@kisaanconnect.com', 'thanushreddy934@gmail.com', 'thansuh@gmail.com'];
   if (!adminEmails.includes(req.session.user.email)) {
     console.log('❌ User not in admin list:', req.session.user.email);
     return res.status(403).json({ success: false, error: 'Admin access required' });
@@ -553,7 +653,7 @@ app.put('/api/admin/help-queries/:id', async (req, res) => {
     return res.status(401).json({ success: false, error: 'Authentication required' });
   }
 
-  const adminEmails = ['admin@kisaanconnect.com', 'support@kisaanconnect.com', 'thanushreddy934@gmail.com'];
+  const adminEmails = ['admin@kisaanconnect.com', 'support@kisaanconnect.com', 'thanushreddy934@gmail.com', 'thansuh@gmail.com'];
   if (!adminEmails.includes(req.session.user.email)) {
     console.log('❌ User not in admin list:', req.session.user.email);
     return res.status(403).json({ success: false, error: 'Admin access required' });
@@ -627,6 +727,33 @@ app.put('/api/admin/help-queries/:id', async (req, res) => {
         success: false,
         error: 'Query not found'
       });
+    }
+
+    // Send push notification to user if response was added
+    if (response) {
+      try {
+        const Farmer = require('./models/Farmer');
+        
+        // Find user by email
+        const user = await Farmer.findOne({ email: updatedTicket.email });
+        
+        if (user && user.fcmToken) {
+          console.log(`📤 Sending admin response notification to ${user.fullName}`);
+          
+          await notificationService.sendAdminResponseNotification(user.fcmToken, {
+            ticketId: updatedTicket.ticketNumber || updatedTicket._id,
+            status: updatedTicket.status === 'resolved' ? 'resolved' : 'updated',
+            adminResponse: response.substring(0, 100) // Limit response length
+          });
+          
+          console.log('✅ Admin response notification sent successfully');
+        } else {
+          console.log('⚠️ No FCM token found for user or user not found');
+        }
+      } catch (notifError) {
+        console.error('❌ Error sending admin response notification:', notifError.message);
+        // Don't fail the ticket update if notification fails
+      }
     }
 
     res.json({
@@ -1356,6 +1483,32 @@ io.on('connection', (socket) => {
         }
       });
 
+      // Send push notification to other participant
+      try {
+        const Farmer = require('./models/Farmer');
+        
+        // Get recipient's FCM token
+        const recipient = await Farmer.findById(otherParticipantId);
+        
+        if (recipient && recipient.fcmToken) {
+          console.log(`📤 Sending push notification to ${recipient.fullName}`);
+          
+          await notificationService.sendChatNotification(recipient.fcmToken, {
+            chatId: chatId,
+            senderId: socket.userId,
+            senderName: message.sender.fullName,
+            messageContent: content.trim()
+          });
+          
+          console.log('✅ Push notification sent successfully');
+        } else {
+          console.log('⚠️ No FCM token found for recipient');
+        }
+      } catch (notifError) {
+        console.error('❌ Error sending push notification:', notifError.message);
+        // Don't fail the message send if notification fails
+      }
+
     } catch (error) {
       console.error('Error sending message:', error);
       socket.emit('error', { message: 'Failed to send message' });
@@ -1410,6 +1563,23 @@ io.on('connection', (socket) => {
     if (socket.userId) {
       connectedUsers.delete(socket.userId);
     }
+  });
+});
+
+// Error handling middleware - must be after all routes
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  console.error('Error stack:', err.stack);
+  
+  // Check if response has already been sent
+  if (res.headersSent) {
+    return next(err);
+  }
+  
+  // Always return JSON for API requests
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal server error',
+    details: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
 });
 

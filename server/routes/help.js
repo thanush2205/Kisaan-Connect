@@ -1,38 +1,57 @@
 const express = require('express');
 const router = express.Router();
 const Ticket = require('../models/Ticket');
+const Farmer = require('../models/Farmer');
 const nodemailer = require('nodemailer');
+const notificationService = require('../services/notificationService');
 
 // Email transporter configuration with improved error handling
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // Use STARTTLS
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
   },
-  timeout: 15000, // 15 seconds timeout
-  connectionTimeout: 15000, // 15 seconds connection timeout
-  greetingTimeout: 10000, // 10 seconds greeting timeout
-  socketTimeout: 15000, // 15 seconds socket timeout
-  pool: true, // Use connection pooling
-  maxConnections: 1, // Limit concurrent connections
-  rateLimit: 3 // Limit to 3 emails per second
+  tls: {
+    rejectUnauthorized: false, // Allow self-signed certificates
+    ciphers: 'SSLv3'
+  },
+  timeout: 30000, // 30 seconds timeout
+  connectionTimeout: 30000,
+  greetingTimeout: 30000,
+  socketTimeout: 30000,
+  pool: false, // Disable pooling for better connection management
+  debug: true, // Enable debug output
+  logger: true // Enable logging
 });
 
 // Safe email sending function with fallback
 async function sendEmailSafely(mailOptions) {
   try {
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.log('Email credentials not configured - skipping email');
+      console.log('❌ Email credentials not configured - skipping email');
+      console.log('  EMAIL_USER:', process.env.EMAIL_USER ? 'Set' : 'Missing');
+      console.log('  EMAIL_PASS:', process.env.EMAIL_PASS ? 'Set' : 'Missing');
       return { success: false, reason: 'not_configured' };
     }
     
-    console.log('Attempting to send email...');
+    console.log('📧 Attempting to send email to:', mailOptions.to);
+    console.log('  From:', process.env.EMAIL_USER);
+    console.log('  Subject:', mailOptions.subject);
+    
     const info = await transporter.sendMail(mailOptions);
     console.log('✅ Email sent successfully:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
     console.error('❌ Error sending email:', error.message);
+    console.error('❌ Error code:', error.code);
+    console.error('❌ Error details:', {
+      command: error.command,
+      response: error.response,
+      responseCode: error.responseCode
+    });
     
     // Log the ticket anyway even if email fails
     console.log('Email failed but ticket was still created successfully');
@@ -116,15 +135,15 @@ function validateTicketData(data) {
 }
 
 // Email notification functions
-async function sendSupportNotificationEmails(ticket) {
+async function sendSupportNotificationEmails(ticket, req) {
   try {
     console.log(`📧 Attempting to send email notifications for ticket ${ticket.ticketId}`);
     
     // Send notification to admin (thanushreddy934@gmail.com)
-    const adminResult = await sendAdminNotification(ticket);
+    const adminResult = await sendAdminNotification(ticket, req);
     
     // Send confirmation to user
-    const userResult = await sendUserConfirmation(ticket);
+    const userResult = await sendUserConfirmation(ticket, req);
     
     if (adminResult.success || userResult.success) {
       console.log(`✅ Email notifications processed for ticket ${ticket.ticketId}`);
@@ -137,7 +156,7 @@ async function sendSupportNotificationEmails(ticket) {
   }
 }
 
-async function sendAdminNotification(ticket) {
+async function sendAdminNotification(ticket, req) {
   const priorityEmoji = {
     low: '🟢',
     medium: '🟡', 
@@ -153,6 +172,11 @@ async function sendAdminNotification(ticket) {
     equipment: '🚜',
     general: '💬'
   };
+
+  // Generate dynamic base URL based on request
+  const protocol = req.get('x-forwarded-proto') || (req.secure ? 'https' : 'http');
+  const host = req.get('host');
+  const baseUrl = `${protocol}://${host}`;
 
   const mailOptions = {
     from: process.env.EMAIL_USER,
@@ -202,7 +226,7 @@ async function sendAdminNotification(ticket) {
         </div>
         
         <div style="text-align: center; margin-top: 30px;">
-          <a href="http://localhost:3000/admin-help.html" style="background: linear-gradient(45deg, #4caf50, #2e7d32); color: white; padding: 12px 25px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
+          <a href="${baseUrl}/admin-help.html" style="background: linear-gradient(45deg, #4caf50, #2e7d32); color: white; padding: 12px 25px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
             🎛️ Manage in Admin Dashboard
           </a>
         </div>
@@ -217,7 +241,12 @@ async function sendAdminNotification(ticket) {
   return sendEmailSafely(mailOptions);
 }
 
-async function sendUserConfirmation(ticket) {
+async function sendUserConfirmation(ticket, req) {
+  // Generate dynamic base URL
+  const protocol = req.get('x-forwarded-proto') || (req.secure ? 'https' : 'http');
+  const host = req.get('host');
+  const baseUrl = `${protocol}://${host}`;
+
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: ticket.email,
@@ -251,7 +280,7 @@ async function sendUserConfirmation(ticket) {
           <p>You can track your ticket status or provide additional information by replying to this email or visiting our help center.</p>
           
           <div style="text-align: center; margin-top: 30px;">
-            <a href="http://localhost:3000/help.html" style="background: linear-gradient(45deg, #4caf50, #2e7d32); color: white; padding: 12px 25px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
+            <a href="${baseUrl}/help.html" style="background: linear-gradient(45deg, #4caf50, #2e7d32); color: white; padding: 12px 25px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
               🎛️ Visit Help Center
             </a>
           </div>
@@ -278,8 +307,13 @@ function getExpectedResponseTime(priority) {
   return responseTimes[priority] || '24-48 hours';
 }
 
-async function sendResponseNotification(ticket, responseMessage, adminName) {
+async function sendResponseNotification(ticket, responseMessage, adminName, req) {
   try {
+    // Generate dynamic base URL
+    const protocol = req.get('x-forwarded-proto') || (req.secure ? 'https' : 'http');
+    const host = req.get('host');
+    const baseUrl = `${protocol}://${host}`;
+
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: ticket.email,
@@ -318,7 +352,7 @@ async function sendResponseNotification(ticket, responseMessage, adminName) {
             </div>
             
             <div style="text-align: center; margin-top: 30px;">
-              <a href="http://localhost:3000/help.html" style="background: linear-gradient(45deg, #4caf50, #2e7d32); color: white; padding: 12px 25px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
+              <a href="${baseUrl}/help.html" style="background: linear-gradient(45deg, #4caf50, #2e7d32); color: white; padding: 12px 25px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
                 🎛️ Visit Help Center
               </a>
             </div>
@@ -387,7 +421,7 @@ router.post('/tickets', optionalAuth, async (req, res) => {
     console.log('Support ticket created:', savedTicket.ticketId);
 
     // Send notification emails
-    await sendSupportNotificationEmails(savedTicket);
+    await sendSupportNotificationEmails(savedTicket, req);
 
     // Send response
     res.status(201).json({
@@ -507,6 +541,30 @@ router.put('/tickets/:id', requireAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Ticket not found' });
     }
 
+    // Send push notification to user if admin added a response
+    if (adminResponse) {
+      try {
+        const user = await Farmer.findOne({ email: ticket.email });
+        
+        if (user && user.fcmToken) {
+          console.log(`📤 Sending push notification to ${user.fullName} for ticket update`);
+          
+          await notificationService.sendAdminResponseNotification(user.fcmToken, {
+            ticketId: ticket.ticketNumber || ticket.ticketId || ticket._id,
+            status: status === 'resolved' ? 'resolved' : 'updated',
+            adminResponse: adminResponse.substring(0, 100) // Limit length for notification
+          });
+          
+          console.log('✅ Push notification sent successfully');
+        } else {
+          console.log('⚠️ No FCM token found for user or user not found');
+        }
+      } catch (notifError) {
+        console.error('❌ Error sending push notification:', notifError.message);
+        // Don't fail the update if notification fails
+      }
+    }
+
     res.json({
       message: 'Ticket updated successfully',
       ticket
@@ -554,7 +612,29 @@ router.post('/tickets/:id/response', requireAdmin, async (req, res) => {
     }
 
     // Send email notification to user about the response
-    await sendResponseNotification(ticket, message.trim(), req.session.user.fullName);
+    await sendResponseNotification(ticket, message.trim(), req.session.user.fullName, req);
+
+    // Send push notification to user
+    try {
+      const user = await Farmer.findOne({ email: ticket.email });
+      
+      if (user && user.fcmToken) {
+        console.log(`📤 Sending push notification to ${user.fullName} for ticket response`);
+        
+        await notificationService.sendAdminResponseNotification(user.fcmToken, {
+          ticketId: ticket.ticketNumber || ticket.ticketId || ticket._id,
+          status: status === 'resolved' ? 'resolved' : 'responded',
+          adminResponse: message.trim().substring(0, 100) // Limit length for notification
+        });
+        
+        console.log('✅ Push notification sent successfully');
+      } else {
+        console.log('⚠️ No FCM token found for user or user not found');
+      }
+    } catch (notifError) {
+      console.error('❌ Error sending push notification:', notifError.message);
+      // Don't fail the response if notification fails
+    }
 
     res.json({
       message: 'Response added successfully',
@@ -636,5 +716,64 @@ function getExpectedResponseTime(priority) {
   };
   return times[priority] || '24-48 hours';
 }
+
+// Test email endpoint (admin only)
+router.post('/test-email', requireAdmin, async (req, res) => {
+  try {
+    console.log('🧪 Testing email configuration...');
+    console.log('📧 EMAIL_USER:', process.env.EMAIL_USER);
+    console.log('📧 EMAIL_PASS:', process.env.EMAIL_PASS ? 'Set (length: ' + process.env.EMAIL_PASS.length + ')' : 'Not set');
+    
+    // First, verify the transporter
+    await transporter.verify();
+    console.log('✅ Transporter verified successfully');
+    
+    // Send test email
+    const testMailOptions = {
+      from: `"Kisaan Connect Support" <${process.env.EMAIL_USER}>`,
+      to: req.session.user.email,
+      subject: '🧪 Test Email - Kisaan Connect',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #28a745;">✅ Email Configuration Test Successful!</h2>
+          <p>This is a test email from Kisaan Connect.</p>
+          <p><strong>Sent at:</strong> ${new Date().toLocaleString()}</p>
+          <p><strong>Environment:</strong> ${process.env.NODE_ENV || 'development'}</p>
+          <hr style="border: 1px solid #e0e0e0; margin: 20px 0;">
+          <p style="color: #666; font-size: 12px;">
+            If you received this email, your email configuration is working correctly!
+          </p>
+        </div>
+      `
+    };
+    
+    const result = await sendEmailSafely(testMailOptions);
+    
+    if (result.success) {
+      res.json({ 
+        success: true, 
+        message: 'Test email sent successfully!',
+        messageId: result.messageId,
+        recipient: req.session.user.email
+      });
+    } else {
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to send test email',
+        error: result.error,
+        reason: result.reason
+      });
+    }
+  } catch (error) {
+    console.error('❌ Email test failed:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Email test failed',
+      error: error.message,
+      code: error.code,
+      command: error.command
+    });
+  }
+});
 
 module.exports = router;

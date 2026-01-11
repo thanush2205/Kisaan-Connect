@@ -1,5 +1,9 @@
 .env
 
+# Firebase credentials
+firebase-service-account.json
+*-firebase-adminsdk-*.json
+
 # Logs
 *.log
 npm-debug.log*

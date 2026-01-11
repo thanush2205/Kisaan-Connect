@@ -229,6 +229,18 @@
           if (response.ok) {
             const successAlert = document.getElementById('successAlert');
             successAlert.style.display = 'block';
+            
+            // Initialize Firebase Cloud Messaging for push notifications
+            try {
+              console.log('🔔 Initializing push notifications...');
+              const { initializeFCM } = await import('./js/firebase-config.js');
+              await initializeFCM();
+              console.log('✅ Push notifications initialized');
+            } catch (fcmError) {
+              console.error('⚠️ Failed to initialize push notifications:', fcmError);
+              // Don't block login if FCM fails
+            }
+            
             setTimeout(() => {
               successAlert.style.display = 'none';
               window.location.href = '/marketplace';
@@ -261,6 +273,13 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: resetEmail })
         });
+        
+        // Check if response is JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          throw new Error('Server returned non-JSON response');
+        }
+        
         const result = await response.json();
 
         if (response.ok) {
@@ -276,7 +295,7 @@
         }
       } catch (error) {
         console.error('Error during reset request:', error);
-        alert('An error occurred. Please try again.');
+        alert('An error occurred. Please check the console and try again.');
       }
     });
 

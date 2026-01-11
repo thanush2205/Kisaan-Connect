@@ -882,51 +882,6 @@ body.dark-mode .vibrating-text {
   }
 }
 
-/* Cart Summary Section */
-.cart-summary-section {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 10px;
-  padding: 15px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
-  max-width: 300px;
-  font-size: 14px;
-}
-
-body.dark-mode .cart-summary-section {
-  background: #2c2c2c;
-  border-color: #404040;
-  color: #e0e0e0;
-}
-
-.cart-summary-content h4 {
-  margin: 0 0 10px 0;
-  font-size: 16px;
-  color: #28a745;
-}
-
-body.dark-mode .cart-summary-content h4 {
-  color: #4ade80;
-}
-
-.cart-summary-details p {
-  margin: 5px 0;
-}
-
-.cart-total {
-  font-weight: bold;
-  border-top: 1px solid #eee;
-  padding-top: 8px;
-  margin-top: 8px;
-}
-
-body.dark-mode .cart-total {
-  border-top-color: #404040;
-}
 
 .crop-card {
   background: white;
@@ -1297,7 +1252,7 @@ body.dark-mode .crop-form input, body.dark-mode .crop-form select {
 #addCropButton {
   position: fixed;
   bottom: 20px;
-  right: 20px;
+  right: 20px; /* Back to right side */
   background: linear-gradient(135deg, #81c784, #4caf50);
   color: white;
   border: none;
@@ -1308,6 +1263,7 @@ body.dark-mode .crop-form input, body.dark-mode .crop-form select {
   box-shadow: 0 6px 20px rgba(76, 175, 80, 0.3);
   cursor: pointer;
   transition: all 0.3s ease;
+  z-index: 999;
 }
 
 /* No crops and error messages */
@@ -2086,18 +2042,6 @@ body.dark-mode .results-info {
     <!-- Crops will be added here dynamically -->
   </div>
 
-  <!-- Cart Summary Section -->
-  <div id="cartSummarySection" class="cart-summary-section" style="display: none;">
-    <div class="cart-summary-content">
-      <h4>Cart Summary</h4>
-      <div class="cart-summary-details">
-        <p>Items: <span id="cartSummaryCount">0</span></p>
-        <div id="cartSummaryItems"></div>
-        <p class="cart-total">Total: ₹<span id="cartSummaryTotal">0</span></p>
-      </div>
-    </div>
-  </div>
-
   <!-- Toast Notification Container -->
   <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;">
     <!-- Toasts will be dynamically added here -->
@@ -2323,8 +2267,19 @@ body.dark-mode .results-info {
       try {
         const response = await fetch('/crops', {
           method: 'POST',
-          body: formData
+          body: formData,
+          credentials: 'include' // Include session cookie
         });
+        
+        // Check content type before parsing
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await response.text();
+          console.error('Server returned non-JSON response:', text);
+          alert('Server error: Please check if you are logged in and try again.');
+          return;
+        }
+        
         const result = await response.json();
     
         if (response.ok) {
@@ -2345,7 +2300,7 @@ body.dark-mode .results-info {
         }
       } catch (error) {
         console.error('Error adding crop:', error);
-        alert('An error occurred while adding the crop.');
+        alert('An error occurred while adding the crop. Please check console for details.');
       }
     }
 
@@ -3288,6 +3243,12 @@ body.dark-mode .results-info {
       const floatingCount = document.getElementById('floatingCartCount');
       const floatingTotal = document.getElementById('floatingCartTotal');
       
+      // Check if elements exist before updating
+      if (!floatingWidget || !floatingCount || !floatingTotal) {
+        console.warn('Floating cart widget elements not found on this page');
+        return;
+      }
+      
       if (totalItems > 0) {
         floatingWidget.style.display = 'block';
         floatingCount.textContent = `${totalItems} item${totalItems !== 1 ? 's' : ''}`;
@@ -3430,6 +3391,7 @@ body.dark-mode .results-info {
           headers: {
             'Content-Type': 'application/json'
           },
+          credentials: 'include', // Important: include cookies for session
           body: JSON.stringify({
             participantId: sellerId,
             cropId: cropId

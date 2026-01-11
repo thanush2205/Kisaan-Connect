@@ -54,6 +54,11 @@ const farmerSchema = new mongoose.Schema({
   resetTokenExpiry: {
     type: Date,
     default: null
+  },
+  fcmToken: {
+    type: String,
+    default: null,
+    index: true // Index for faster lookups
   }
 }, {
   timestamps: true // Adds createdAt and updatedAt fields

@@ -87,33 +87,78 @@ router.post('/start', requireAuth, async (req, res) => {
     }
 
     // Check if participant exists
+    console.log('🔍 Looking up participant:', participantId);
     const participant = await Farmer.findById(participantId);
-    console.log('👤 Participant lookup:', participant ? 'Found' : 'Not found');
+    console.log('👤 Participant lookup result:', participant ? `Found: ${participant.fullName}` : 'Not found');
     if (!participant) {
       console.log('❌ Participant not found:', participantId);
       return res.status(404).json({ error: 'Participant not found' });
     }
 
-    // Check if chat already exists
-    let chat = await Chat.findChatBetweenUsers(currentUserId, participantId, cropId);
+    // Check if chat already exists (regardless of crop - one chat per user pair)
+    console.log('🔍 Checking for existing chat between users...');
+    let chat = await Chat.findChatBetweenUsers(currentUserId, participantId);
+    console.log('💬 Existing chat:', chat ? `Found: ${chat._id}` : 'Not found');
     
     if (!chat) {
       console.log('💬 Creating new chat');
-      // Create new chat
-      chat = new Chat({
-        participants: [currentUserId, participantId],
-        cropId: cropId || undefined
-      });
-      await chat.save();
-      await chat.populate('participants', 'fullName profilePicture');
-      if (cropId) {
-        await chat.populate('cropId', 'name imageUrl');
+      try {
+        // Create new chat
+        chat = new Chat({
+          participants: [currentUserId, participantId],
+          cropId: cropId || undefined
+        });
+        console.log('💾 Saving new chat to database...');
+        await chat.save();
+        console.log('✅ Chat saved:', chat._id);
+        
+        console.log('👥 Populating participants...');
+        await chat.populate('participants', 'fullName profilePicture');
+        console.log('✅ Participants populated');
+        
+        if (cropId) {
+          console.log('🌾 Populating crop info...');
+          await chat.populate('cropId', 'name imageUrl');
+          console.log('✅ Crop populated');
+        }
+      } catch (saveError) {
+        console.error('❌ Error creating chat:', saveError);
+        console.error('❌ Save error details:', {
+          message: saveError.message,
+          name: saveError.name,
+          code: saveError.code,
+          errors: saveError.errors
+        });
+        throw saveError;
       }
     } else {
       console.log('💬 Using existing chat');
+      // Make sure existing chat is populated
+      if (!chat.participants[0].fullName) {
+        console.log('👥 Populating existing chat participants...');
+        await chat.populate('participants', 'fullName profilePicture');
+      }
+      
+      // Optionally update the cropId if a new one is provided
+      if (cropId && (!chat.cropId || chat.cropId.toString() !== cropId)) {
+        console.log('📝 Updating chat cropId to:', cropId);
+        chat.cropId = cropId;
+        await chat.save();
+        if (cropId) {
+          await chat.populate('cropId', 'name imageUrl');
+        }
+      }
     }
 
+    console.log('🔍 Finding other participant...');
     const otherParticipant = chat.participants.find(p => !p._id.equals(currentUserId));
+    
+    if (!otherParticipant) {
+      console.error('❌ Could not find other participant in chat');
+      console.error('Chat participants:', chat.participants);
+      console.error('Current user ID:', currentUserId);
+      return res.status(500).json({ error: 'Failed to identify chat participant' });
+    }
     
     console.log('✅ Chat ready:', chat._id);
     res.json({
@@ -135,7 +180,16 @@ router.post('/start', requireAuth, async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error starting chat:', error);
-    res.status(500).json({ error: 'Failed to start chat' });
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error details:', {
+      message: error.message,
+      name: error.name,
+      code: error.code
+    });
+    res.status(500).json({ 
+      error: 'Failed to start chat',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 

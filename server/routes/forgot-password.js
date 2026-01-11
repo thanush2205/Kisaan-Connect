@@ -34,6 +34,9 @@ router.post('/', async (req, res) => {
   console.log('Received POST /forgot-password:', req.body);
   const { email } = req.body;
 
+  // Set content type to JSON
+  res.setHeader('Content-Type', 'application/json');
+
   if (!email) {
     console.log('Email missing');
     return res.status(400).json({ error: 'Email is required' });
@@ -57,12 +60,10 @@ router.post('/', async (req, res) => {
     });
     console.log('Reset token stored for:', email);
 
-    // Use dynamic base URL for production
-    const baseUrl = process.env.NODE_ENV === 'production' || 
-                   process.env.RENDER === '1' || 
-                   req.get('host')?.includes('render.com')
-      ? `https://${req.get('host')}`
-      : 'http://localhost:3000';
+    // Use dynamic base URL - auto-detect environment
+    const protocol = req.get('x-forwarded-proto') || (req.secure ? 'https' : 'http');
+    const host = req.get('host');
+    const baseUrl = `${protocol}://${host}`;
     const resetUrl = `${baseUrl}/reset-password.html?token=${resetToken}`;
     console.log('Generated reset URL:', resetUrl);
 
@@ -103,6 +104,9 @@ router.post('/', async (req, res) => {
 router.post('/reset', async (req, res) => {
     console.log('Received POST /forgot-password/reset:', req.body);
     const { token, newPassword } = req.body;
+  
+    // Set content type to JSON
+    res.setHeader('Content-Type', 'application/json');
   
     if (!token || !newPassword) {
       console.log('Missing token or newPassword');
