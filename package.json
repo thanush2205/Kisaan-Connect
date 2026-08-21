@@ -17,7 +17,7 @@
     "farmers",
     "nodejs"
   ],
-  "author": "Thanush",
+  "author": "Thanush & Chandragiri Sai Tharun",
   "license": "ISC",
   "description": "Kisaan Connect - Agricultural marketplace platform connecting farmers and buyers",
   "dependencies": {
