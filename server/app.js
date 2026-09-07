@@ -17,6 +17,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 const Chat = require('./models/Chat');
 const Message = require('./models/Message');
+const { initializeRedis } = require('./config/redis');
 
 // Initialize notification service (Firebase) early
 const notificationService = require('./services/notificationService');
@@ -26,6 +27,7 @@ require('./config/cloudinary');
 
 const app = express();
 const server = http.createServer(app);
+initializeRedis();
 const io = socketIo(server, {
   cors: {
     origin: process.env.NODE_ENV === 'production' 
@@ -104,6 +106,7 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   proxy: process.env.NODE_ENV === 'production', // Trust first proxy (important for Render)
+  name: 'sessionId',
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,

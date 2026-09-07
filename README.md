@@ -16,7 +16,7 @@
 *   🤖 **AI Price Chatbot**: A smart virtual assistant that suggests pricing details and answers crop queries.
 *   🌗 **Day/Night Theme Toggle**: A modern, smooth dark-mode switch that dynamically transitions styles across the entire application.
 *   🛡️ **Secure Access & Auditing**:
-    *   Authentication and signups with password hashing using **bcrypt**.
+    *   Authentication and signups with password hashing using **bcryptjs**.
     *   Admin interface for handling support tickets and querying market prices.
     *   Strict Content Security Policy (CSP) headers protecting resources.
 
@@ -30,6 +30,8 @@
 | **Real-time Engine** | Socket.io | Bidirectional event-based communication for live chat |
 | **Backend** | Node.js, Express.js | Robust MVC API endpoints and routing services |
 | **Database** | MongoDB & Mongoose | Document database for storage of users, crops, chats, orders, and tickets |
+| **Cache** | Redis | Location-based caching for frequently requested mandi prices |
+| **Local Infrastructure** | Docker Compose | Runs Redis locally with a persistent named volume |
 | **Cloud Storage** | Cloudinary | CDN-delivered cloud media uploads for crops and profile pictures |
 | **Notifications** | Firebase Cloud Messaging (FCM) | Cross-platform messaging service for background/foreground push alerts |
 | **Mail Services** | Nodemailer | Transactional emails for support, registration, and password recovery |
@@ -63,7 +65,8 @@ WT_Project/
 │   ├── app.js                  # Main server entry & socket configuration
 │   ├── config/
 │   │   ├── db.js               # MongoDB/Mongoose connection
-│   │   └── cloudinary.js       # Cloudinary integration setup
+│   │   ├── cloudinary.js       # Cloudinary integration setup
+│   │   └── redis.js             # Redis client initialization
 │   ├── models/                 # Mongoose Database Models
 │   │   ├── Address.js, Cart.js, Chat.js, Crop.js, Farmer.js,
 │   │   └── MarketPrice.js, Message.js, Order.js, Ticket.js, Wishlist.js
@@ -71,8 +74,10 @@ WT_Project/
 │   │   ├── register.js, login.js, crops.js, chats.js, ecommerce.js,
 │   │   └── forgot-password.js, help.js, market-prices.js
 │   └── services/
-│       └── notificationService.js # Firebase Cloud Messaging alerts wrapper
+│       ├── notificationService.js # Firebase Cloud Messaging alerts wrapper
+│       └── marketPriceService.js   # Mandi API adapter and Redis cache
 │
+├── docker-compose.yml           # Local Redis service
 ├── uploads/                    # Local upload directory (fallback)
 └── package.json                # Project dependencies and startup scripts
 ```
@@ -88,6 +93,13 @@ To run KisaanConnect, create a `.env` file in the root directory based on the `.
 NODE_ENV=development
 PORT=3000
 SESSION_SECRET=your_secure_session_secret
+
+# Redis and mandi market-price cache
+REDIS_URL=redis://localhost:6379
+MARKET_PRICE_CACHE_TTL=300
+MARKET_PRICE_API_URL=https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070
+MARKET_PRICE_API_KEY=your_data_gov_api_key
+MARKET_PRICE_API_LIMIT=10
 
 # Database Configuration
 MONGODB_URI=mongodb://localhost:27017/kisaanconnect # Or your MongoDB Atlas connection string
@@ -116,6 +128,7 @@ CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 ### Prerequisites
 - Install **Node.js** (v18.0.0 or higher recommended)
 - Install and run **MongoDB** locally, or set up a cluster on **MongoDB Atlas**
+- Install and start **Docker Desktop** for local Redis
 
 ### Installation Steps
 
@@ -131,9 +144,17 @@ CLOUDINARY_API_SECRET=your_cloudinary_api_secret
     ```
 
 3.  **Configure environment variables:**
-    Rename `.env.example` to `.env` and fill in your MongoDB, Cloudinary, Firebase, and SMTP mail configurations.
+    Copy `.env.example` to `.env` and fill in your MongoDB, Redis, data.gov.in API, Cloudinary, Firebase, and SMTP mail configurations. Keep `.env` private; it is ignored by Git.
 
-4.  **Start the server:**
+4.  **Start local Redis:**
+    ```bash
+    docker compose up -d redis
+    docker compose exec redis redis-cli ping
+    ```
+    The Redis check should return `PONG`.
+
+5.  **Start MongoDB and the server:**
+    MongoDB must be running before starting the application. For development:
     *   For development (uses nodemon):
         ```bash
         npm run dev
@@ -143,8 +164,34 @@ CLOUDINARY_API_SECRET=your_cloudinary_api_secret
         npm start
         ```
 
-5.  **Access the application:**
+6.  **Access the application:**
     Open [http://localhost:3000](http://localhost:3000) in your web browser.
+
+### Local Redis and Location-Based Market Prices
+
+Redis caches market prices by the user's signup state, district, and selected category. Start Redis locally with Docker from the project root:
+
+```bash
+docker compose up -d redis
+```
+
+Verify the container:
+
+```bash
+docker compose exec redis redis-cli ping
+```
+
+The expected response is `PONG`. Add the following values to your local `.env` file:
+
+```env
+REDIS_URL=redis://localhost:6379
+MARKET_PRICE_CACHE_TTL=300
+MARKET_PRICE_API_URL=https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070
+MARKET_PRICE_API_KEY=your_data_gov_api_key
+MARKET_PRICE_API_LIMIT=10
+```
+
+The API key must remain in `.env` and must not be committed. After login, `/api/market-prices` uses the user's saved `state` and `district`, fetches the mandi data, and caches the response for five minutes. The cache key includes location and category. Stop Redis with `docker compose down`.
 
 ---
 

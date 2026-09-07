@@ -847,7 +847,7 @@
       <a href="#testimonials">Testimonials</a>
       <a href="/about">About</a>
       <a href="#contact">Contact</a>
-      <div class="auth-buttons">
+        <div class="auth-buttons" id="authButtons">
         <a href="Login.html" class="btn btn-light">Login</a>
         <a href="registration.html" class="btn btn-primary">Register</a>
       </div>
@@ -1043,6 +1043,38 @@
         }
       });
     });
+  </script>
+
+  <script>
+    async function updateAuthButtons() {
+      const authButtons = document.getElementById('authButtons');
+
+      try {
+        const response = await fetch('/user', {
+          credentials: 'include'
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const user = await response.json();
+        const greeting = document.createElement('span');
+        const logoutLink = document.createElement('a');
+
+        greeting.className = 'btn btn-light';
+        greeting.textContent = `Hi, ${user.fullName}`;
+        logoutLink.className = 'btn btn-primary';
+        logoutLink.href = '/logout';
+        logoutLink.textContent = 'Logout';
+
+        authButtons.replaceChildren(greeting, logoutLink);
+      } catch (error) {
+        console.error('Error checking login status:', error);
+      }
+    }
+
+    updateAuthButtons();
   </script>
 </body>
 </html>

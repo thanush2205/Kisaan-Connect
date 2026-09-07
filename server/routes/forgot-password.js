@@ -3,7 +3,7 @@ const router = express.Router();
 const Farmer = require('../models/Farmer');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',

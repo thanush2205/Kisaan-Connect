@@ -1,5 +1,8 @@
 .env
-
+.env.production
+.env.*
+!.env.example
+node_modules/
 # Firebase credentials
 firebase-service-account.json
 *-firebase-adminsdk-*.json
@@ -16,9 +19,6 @@ pids
 *.seed
 *.pid.lock
 
-# Dependency directories
-node_modules/
-
 # Optional npm cache directory
 .npm
 
@@ -32,7 +32,6 @@ node_modules/
 .yarn-integrity
 
 # dotenv environment variables file
-.env
 .env.test
 .env.local
 .env.development.local

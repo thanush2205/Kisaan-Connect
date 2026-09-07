@@ -1,11 +1,34 @@
 const express = require('express');
 const router = express.Router();
 const MarketPrice = require('../models/MarketPrice');
+const { getLocationMarketPrices } = require('../services/marketPriceService');
 
 // GET /api/market-prices - Get all market prices
 router.get('/', async (req, res) => {
   try {
     const { category } = req.query;
+
+    if (req.session.user?.state && req.session.user?.district) {
+      const externalPrices = await getLocationMarketPrices({
+        state: req.session.user.state,
+        district: req.session.user.district,
+        category
+      });
+
+      if (externalPrices) {
+        return res.json({
+          success: true,
+          data: externalPrices,
+          count: externalPrices.length,
+          source: 'government-api',
+          location: {
+            state: req.session.user.state,
+            district: req.session.user.district
+          }
+        });
+      }
+    }
+
     let filter = {};
     
     if (category) {
